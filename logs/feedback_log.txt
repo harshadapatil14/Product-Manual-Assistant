@@ -1,0 +1,12 @@
+Feedback: not usefull
+Sentiment: 0.0
+Result: 😐 Neutral feedback received.
+
+Feedback: use full
+Sentiment: 0.0
+Result: 😐 Neutral feedback received.
+
+Feedback: bad
+Sentiment: -0.5423
+Result: ❌ Negative feedback detected: Model penalized.
+

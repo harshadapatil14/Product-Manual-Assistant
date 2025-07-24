@@ -1,0 +1,11 @@
+pdfplumber
+pillow
+pytesseract
+sentence-transformers
+chromadb
+langchain
+openai
+python-dotenv
+nltk
+streamlit
+
