@@ -8,4 +8,7 @@ openai
 python-dotenv
 nltk
 streamlit
+matplotlib 
+seaborn 
+pandas
 

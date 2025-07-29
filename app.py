@@ -3,15 +3,18 @@ import os
 import uuid
 from pathlib import Path
 import shutil
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pdfplumber import open as pdf_open
 
 from text_chunker.chunker import TextChunker
 from text_chunker.vector_store import VectorStore
 from qa_engine import QAEngine
-from pdfplumber import open as pdf_open
-
+from pdf_processor import PDFPlumberProcessor
 
 # -----------------------------
-# Function: Extract text from uploaded PDF using pdfplumber
+# Function: Extract text from PDF using pdfplumber
 # -----------------------------
 def extract_text_from_pdf(uploaded_file):
     all_text = ""
@@ -21,89 +24,79 @@ def extract_text_from_pdf(uploaded_file):
             all_text += f"\n\n--- Page {i + 1} ---\n{page_text or ''}"
     return all_text
 
+# -----------------------------
+# Page Setup
+# -----------------------------
+st.set_page_config(page_title="Product Manual Assistant", layout="wide")
+st.title("📘 Product Manual Assistant")
 
 # -----------------------------
-# Streamlit App UI
+# Define Tabs
 # -----------------------------
-st.set_page_config(page_title="Manual Assistant", layout="wide")
-st.title("Product Manual Assistant")
-st.write("Upload a product manual (PDF) and ask questions about it.")
-
+tab1, tab2, tab3 = st.tabs(["📄 Upload & Process", "❓ Ask Questions", "📣 Feedback & Team"])
 
 # -----------------------------
-# Step 1: Upload PDF
+# TAB 1: Upload & Process PDF
 # -----------------------------
-uploaded_file = st.file_uploader("Upload a PDF Manual", type=["pdf"])
+with tab1:
+    st.header("Step 1: Upload a Product Manual PDF")
+    uploaded_file = st.file_uploader("Upload PDF Manual", type=["pdf"])
 
-if uploaded_file:
-    with st.spinner("Extracting text from PDF..."):
-        text = extract_text_from_pdf(uploaded_file)
+    if uploaded_file:
+        with st.spinner("Extracting text from PDF..."):
+            text = extract_text_from_pdf(uploaded_file)
 
-    # -----------------------------
-    # Step 2: Create unique directory for vector store
-    # -----------------------------
-    persist_dir = f"session_data/{uuid.uuid4()}"
-    os.makedirs(persist_dir, exist_ok=True)
+        st.success("✅ Text extracted successfully.")
 
-    st.success("✅ Text extracted successfully.")
+        # Create persist directory using session state
+        if "persist_dir" not in st.session_state:
+            session_id = str(uuid.uuid4())
+            st.session_state.persist_dir = f"session_data/{session_id}"
+            os.makedirs(st.session_state.persist_dir, exist_ok=True)
 
-    # -----------------------------
-    # Step 3: Chunk the extracted text
-    # -----------------------------
-    chunker = TextChunker(chunk_size=500, chunk_overlap=100)
-    chunks = chunker.chunk_text(text)
+        # Chunk and store text
+        chunker = TextChunker(chunk_size=500, chunk_overlap=100)
+        chunks = chunker.chunk_text(text)
 
-    # -----------------------------
-    # Step 4: Store chunks in vector DB
-    # -----------------------------
-    # Use a consistent persist directory per Streamlit session
-    if "persist_dir" not in st.session_state:
-        session_id = str(uuid.uuid4())
-        st.session_state.persist_dir = f"session_data/{session_id}"
-        os.makedirs(st.session_state.persist_dir, exist_ok=True)
+        store = VectorStore(persist_directory=st.session_state.persist_dir)
+        store.add_documents(chunks)
 
-    persist_dir = st.session_state.persist_dir
+        # Save extracted text for later use
+        st.session_state.extracted_text = text
+        st.session_state.qa_engine = QAEngine(persist_directory=st.session_state.persist_dir)
 
+# -----------------------------
+# TAB 2: Ask Questions
+# -----------------------------
+with tab2:
+    st.header("Step 2: Ask a Question")
+    if "qa_engine" not in st.session_state:
+        st.warning("Please upload and process a PDF in the first tab.")
+    else:
+        query = st.text_input("Type your question:")
+        if st.button("Get Answer"):
+            with st.spinner("Generating answer using local model..."):
+                answer = st.session_state.qa_engine.ask(query)
+                st.markdown("### Answer:")
+                st.write(answer)
 
-    # if os.path.exists(persist_dir):
-    #     shutil.rmtree(persist_dir)
-    # os.makedirs(persist_dir, exist_ok=True)
+                # Show context if requested
+                if st.checkbox("Show retrieved context"):
+                    similar_chunks = st.session_state.qa_engine.vector_store.query(query, n_results=3)
+                    for i, chunk in enumerate(similar_chunks):
+                        st.markdown(f"**Chunk {i + 1}:**")
+                        st.code(chunk[:1000])
 
-    store = VectorStore(persist_directory=persist_dir)
-    store.add_documents(chunks)
+# -----------------------------
+# TAB 3: Feedback, Visualization & Team Info
+# -----------------------------
+with tab3:
+    st.header("Step 3: Feedback on the Answer")
 
-    # -----------------------------
-    # Step 5: Initialize QA engine
-    # -----------------------------
-    qa = QAEngine(persist_directory=persist_dir)
-
-    # -----------------------------
-    # Step 6: Accept user query
-    # -----------------------------
-    st.subheader("Ask a Question")
-    query = st.text_input("Type your question about the manual:")
-
-    if st.button("Get Answer") and query:
-        with st.spinner("Generating answer using local model..."):
-            answer = qa.ask(query)
-            st.markdown("### Answer:")
-            st.write(answer)
-
-    # feedback feature 
-    # 1. Required imports
     import nltk
     from nltk.sentiment import SentimentIntensityAnalyzer
-    import streamlit as st
-    import os
-
-    # 2. Download VADER lexicon (only once)
     nltk.download('vader_lexicon')
-
-    # 3. Initialize sentiment analyzer
     sentiment_analyzer = SentimentIntensityAnalyzer()
-
-    # 4. Feedback section in your Streamlit app (put this after displaying the model's answer)
-    st.subheader("📣 Feedback on Answer")
 
     feedback_text = st.text_area("Was this answer helpful? Share your feedback below:")
 
@@ -116,17 +109,60 @@ if uploaded_file:
 
             if compound > 0.05:
                 result = "✅ Positive feedback detected: Model rewarded."
-                # Optional: Increment a reward counter or score
             elif compound < -0.05:
                 result = "❌ Negative feedback detected: Model penalized."
-                # Optional: Log penalty, degrade score, or flag
             else:
                 result = "😐 Neutral feedback received."
 
             st.success(result)
 
-            # Optional: Save feedback to log file
+            # Save to log
             os.makedirs("logs", exist_ok=True)
             with open("logs/feedback_log.txt", "a", encoding="utf-8") as f:
                 f.write(f"Feedback: {feedback_text}\nSentiment: {compound}\nResult: {result}\n\n")
 
+    st.markdown("---")
+    st.subheader("📊 Feedback Visualization")
+
+    try:
+        with open("logs/feedback_log.txt", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        feedbacks = []
+        for i in range(0, len(lines), 4):
+            feedback = lines[i].replace("Feedback: ", "").strip()
+            sentiment_score = float(lines[i + 1].split(":")[1].strip())
+            result = lines[i + 2].split(":")[1].strip()
+            feedbacks.append({
+                "Feedback": feedback,
+                "Sentiment Score": sentiment_score,
+                "Result": result
+            })
+
+        df = pd.DataFrame(feedbacks)
+
+        st.subheader("Feedback Categories")
+        fig1, ax1 = plt.subplots()
+        df['Result'].value_counts().plot.pie(autopct='%1.1f%%', ax=ax1, ylabel='', colors=['#8fd9a8', '#f49f9f', '#fbe7a1'])
+        st.pyplot(fig1)
+
+        st.subheader("Sentiment Score Distribution")
+        fig2, ax2 = plt.subplots()
+        sns.histplot(df["Sentiment Score"], bins=10, kde=True, ax=ax2, color="skyblue")
+        st.pyplot(fig2)
+
+        if st.checkbox("Show Raw Feedback Log"):
+            st.dataframe(df)
+
+    except FileNotFoundError:
+        st.info("No feedback available yet.")
+
+    st.markdown("---")
+    st.subheader("Team")
+    st.markdown("""
+    **Harshada Patil**  
+    📧 harshadapatil@example.com
+
+    **Pallavi Dudhalkar**  
+    📧 pallavidudhalkar@example.com
+    """)

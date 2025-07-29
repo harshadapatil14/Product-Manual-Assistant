@@ -10,3 +10,15 @@ Feedback: bad
 Sentiment: -0.5423
 Result: ❌ Negative feedback detected: Model penalized.
 
+Feedback: GOOD
+Sentiment: 0.4404
+Result: ✅ Positive feedback detected: Model rewarded.
+
+Feedback: good
+Sentiment: 0.4404
+Result: ✅ Positive feedback detected: Model rewarded.
+
+Feedback: good 
+Sentiment: 0.4404
+Result: ✅ Positive feedback detected: Model rewarded.
+
