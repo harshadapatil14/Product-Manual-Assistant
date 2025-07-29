@@ -111,27 +111,6 @@ streamlit run app.py
 
 ---
 
-## Directory Structure
-
-```
-Product-Manual-Assistant/
-│
-├── app.py                   # Streamlit frontend
-├── modules/
-│   ├── pdf_processor.py     # PDF parsing logic
-│   ├── text_chunker.py      # Chunking logic
-│   ├── embedding_gen.py     # Embedding logic
-│   ├── vector_store.py      # ChromaDB operations
-│   ├── qa_engine.py         # Query processing and prompt generation
-│   └── feedback_handler.py  # Feedback collection and sentiment analysis
-│
-├── requirements.txt
-├── feedback_log.csv         # User feedback records
-└── README.md
-```
-
----
-
 ## Contributors
 
 * **Harshada Patil**
