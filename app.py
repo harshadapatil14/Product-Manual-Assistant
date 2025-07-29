@@ -161,8 +161,8 @@ with tab3:
     st.subheader("Team")
     st.markdown("""
     **Harshada Patil**  
-    📧 harshadapatil@example.com
+    📧 harshadaavijaypatil@example.com
 
     **Pallavi Dudhalkar**  
-    📧 pallavidudhalkar@example.com
+    📧 pallavi.dudhalkar@example.com
     """)
